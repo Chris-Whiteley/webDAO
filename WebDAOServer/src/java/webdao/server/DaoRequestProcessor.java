@@ -40,43 +40,52 @@ class DaoRequestProcessor {
      * @return the response object results to be returned to the client.
      * @throws Exception
      */
-    public Object processRequest(PersistenceRequest pr, HttpSession session, String daoPackageName) throws Exception {
-
-        EntityManager em = getEntityManager(pr, session);
+    public Object processRequest(PersistenceRequest pr, HttpSession session, String daoPackageName) {
         Object response = new VoidReturn();
 
-        switch (pr.getPersistenceType()) {
-            case BEGIN_TRANSACTION:
-                beginTransaction(em, session);
-                break;
-            case COMMIT_TRANSACTION:
-                commitTransaction(em, session);
-                break;
-            case ROLLBACK_TRANSACTION:
-                rollbackTransaction(em, session);
-                break;
-            case READ:
-                response = runMethod(pr, em, daoPackageName);
-                if (pr.isOngoingTransaction()) {
-                    em.close();
-                }
-                break;
-            case CREATE:
-            case UPDATE:
-            case DELETE:
-                if (pr.isOngoingTransaction()) {
-                    response = runMethod(pr, em, daoPackageName);
-                } else {
-                    response = runMethodInNewTransaction(em, pr, daoPackageName);
-                }
-        }
+        try {
+            EntityManager em = getEntityManager(pr, session);
 
+            switch (pr.getPersistenceType()) {
+                case BEGIN_TRANSACTION:
+                    beginTransaction(em, session);
+                    break;
+                case COMMIT_TRANSACTION:
+                    commitTransaction(em, session);
+                    break;
+                case ROLLBACK_TRANSACTION:
+                    rollbackTransaction(em, session);
+                    break;
+                case READ:
+                    response = runMethod(pr, em, daoPackageName);
+                    if (pr.isOngoingTransaction()) {
+                        em.close();
+                    }
+                    break;
+                case CREATE:
+                case UPDATE:
+                case DELETE:
+                    if (pr.isOngoingTransaction()) {
+                        response = runMethod(pr, em, daoPackageName);
+                    } else {
+                        response = runMethodInNewTransaction(em, pr, daoPackageName);
+                    }
+            }
+        } catch (Throwable t) {
+            System.out.println("Error in DaoRequestProcessor processRequest: " + getStackTrace(t));
+
+            if (t instanceof RuntimeException) {
+                response = t;
+            } else {
+                response = new RuntimeException(getStackTrace(t));
+            }
+        }
         return response;
     }
 
     private Object runMethodInNewTransaction(EntityManager em, PersistenceRequest pr, String daoPackageName) throws RuntimeException {
         Object response = null;
-        
+
         em.getTransaction().begin();
         try {
             try {

@@ -4,9 +4,6 @@
  */
 package webdao.client;
 
-import com.sonalb.net.http.cookie.Client;
-import com.sonalb.net.http.cookie.CookieJar;
-
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -29,96 +26,107 @@ public class PersistenceInterface {
 
     private final String PERSISTENCE_SERVLET = "/PersistenceServlet";
     private final String CONTEXT_PATH = "/WebDAOServer";
-    private URL servletURL;
-    private boolean ongoingTransaction;
-    private final Client client;
-    private final CookieJar cookieJar;
+    private final URL servletURL;
+    //   private boolean ongoingTransaction;
+    private ThreadLocal<Boolean> threadsOngoingTransactions = new ThreadLocal<Boolean>() {
+        @Override
+        protected Boolean initialValue() {
+            return false;
+        }
+    };
 
     public PersistenceInterface(URL serverURL) throws MalformedURLException {
         servletURL = new URL(serverURL.getProtocol() + "://" + serverURL.getHost() + ":" + serverURL.getPort() + CONTEXT_PATH + PERSISTENCE_SERVLET);
-        client = new Client();
-        cookieJar = new CookieJar();
     }
 
- 
+    private boolean isOngoingTransaction() {
+        return (threadsOngoingTransactions.get());
+    }
+
+    private void setOngoingTransaction(boolean ongoing) {
+        threadsOngoingTransactions.set(ongoing);
+    }
+
     public void beginTransaction() {
-        if (!ongoingTransaction) {
+        if (!isOngoingTransaction()) {
             PersistenceRequest pr = new PersistenceRequest();
             pr.setPersistenceType(PersistenceType.BEGIN_TRANSACTION);
             sendRequest(pr);
-            ongoingTransaction = true;
+            setOngoingTransaction(true);
         }
     }
 
     public void commitTransaction() {
-        if (ongoingTransaction) {
+        if (isOngoingTransaction()) {
             PersistenceRequest pr = new PersistenceRequest();
             pr.setPersistenceType(PersistenceType.COMMIT_TRANSACTION);
             sendRequest(pr);
-            ongoingTransaction = false;
+            setOngoingTransaction(false);
         }
     }
 
     public void rollbackTransaction() {
-        if (ongoingTransaction) {
+        if (isOngoingTransaction()) {
             PersistenceRequest pr = new PersistenceRequest();
             pr.setPersistenceType(PersistenceType.ROLLBACK_TRANSACTION);
             sendRequest(pr);
-            ongoingTransaction = false;
+            setOngoingTransaction(false);
         }
+    }
+
+    public <T extends Object> T sendRequest(String className, String methodName) {
+        PersistenceRequest pr = new PersistenceRequest();
+        pr.setClassName(className);
+        pr.setMethodName(methodName);
+        return sendRequest(pr);
+    }
+
+    public <T extends Object> T sendRequest(String className, String methodName, Object... args) {
+        PersistenceRequest pr = new PersistenceRequest();
+        pr.setClassName(className);
+        pr.setMethodName(methodName);
+        pr.setParameters(args);
+        return sendRequest(pr);
     }
 
     public <T extends Object> T sendRequest(PersistenceRequest pr) {
         Object results = null;
-        ObjectInputStream ois = null;
-        ObjectOutputStream oos = null;
 
         try {
-            // create in constructor
             HttpURLConnection urlConnection = (HttpURLConnection) servletURL.openConnection();
-            client.setCookies(urlConnection, cookieJar);
             urlConnection.setDoInput(true);
             urlConnection.setDoOutput(true);
-            oos = new ObjectOutputStream(urlConnection.getOutputStream());
-            oos.writeObject(preProcessRequest(pr));
-            cookieJar.addAll(client.getCookies(urlConnection));
-            BufferedInputStream bis = new BufferedInputStream(urlConnection.getInputStream());
-            ois = new ObjectInputStream(bis);
-            results = ois.readObject();
-        } catch (ConnectException ce) {
-            ongoingTransaction = false;
-            throw new RuntimeException("Cannot connect to " + servletURL + ": " + getStackTrace(ce));
-        } catch (Exception e) {
-            ongoingTransaction = false;
-            throw new RuntimeException(e);
-        } finally {
-            try {
-                if (oos != null) {
-
-                    oos.close();
-                }
-                if (ois != null) {
-                    ois.close();
-                }
-            } catch (IOException ex) {
+            try (
+                    ObjectOutputStream oos = new ObjectOutputStream(urlConnection.getOutputStream())) {
+                oos.writeObject(preProcessRequest(pr));
             }
+
+            try (
+                    BufferedInputStream bis = new BufferedInputStream(urlConnection.getInputStream());
+                    ObjectInputStream ois = new ObjectInputStream(bis)) {
+                results = ois.readObject();
+            }
+        } catch (ConnectException ce) {
+            setOngoingTransaction(false);
+            throw new RuntimeException("Cannot connect to " + servletURL + ": " + getStackTrace(ce));
+        } catch (IOException | ClassNotFoundException e) {
+            setOngoingTransaction(false);
+            throw new RuntimeException(e);
         }
 
-        if (results != null) {
-            if (results instanceof TransactionTimeoutError) {
-                ongoingTransaction = false;
-                throw (TransactionTimeoutError) results;
-            }
+        if (results instanceof TransactionTimeoutError) {
+            setOngoingTransaction(false);
+            throw (TransactionTimeoutError) results;
+        }
 
-            if (results instanceof RuntimeException) {
-                throw (RuntimeException) results;
-            }
+        if (results instanceof RuntimeException) {
+            throw (RuntimeException) results;
+        }
 
-            if (results instanceof Throwable) {
-                Throwable t = (Throwable) results;
-                ongoingTransaction = false;
-                throw new RuntimeException(t);
-            }
+        if (results instanceof Throwable) {
+            Throwable t = (Throwable) results;
+            setOngoingTransaction(false);
+            throw new RuntimeException(t);
         }
 
         return (T) results;
@@ -131,9 +139,9 @@ public class PersistenceInterface {
     }
 
     private PersistenceRequest preProcessRequest(PersistenceRequest pr) {
-        pr.setOngoingTransaction(ongoingTransaction);
+        pr.setOngoingTransaction(isOngoingTransaction());
 //        switch (pr.getPersistenceType()) {
-            // for CREATE and UPDATE requests handle auditing fields
+        // for CREATE and UPDATE requests handle auditing fields
 //            case CREATE:
 //                for (Object parameter : pr.getParameters()) {
 //                    if (parameter instanceof Audit) {
@@ -148,12 +156,6 @@ public class PersistenceInterface {
 //                    }
 //                }
 //                break;
-//            case BEGIN_TRANSACTION:
- //           case COMMIT_TRANSACTION:
- //           case ROLLBACK_TRANSACTION:
- //               pr.setOngoingTransaction(ongoingTransaction);
- //       }
-
         return pr;
     }
 

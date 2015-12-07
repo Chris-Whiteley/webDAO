@@ -5,10 +5,13 @@
  */
 package com.cjw.test;
 
+import java.net.CookieHandler;
+import java.net.CookieManager;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import webdao.client.PersistenceInterface;
+import webdao.client.ThreadCookieManager;
 import webdao.client.dao.CharacterDao;
 import webdao.entity.Character;
 
@@ -18,6 +21,12 @@ import webdao.entity.Character;
  */
 public class TestWebDao {
     public static void main(String[] args) throws MalformedURLException {
+        
+        // For multithreaded applications the following line allows for each thread to
+        // have its own cookie jar.  When used with PersistenceInterface this allows threads to participate in their own
+        // transactions.
+      CookieHandler.setDefault(new ThreadCookieManager());
+       
         PersistenceInterface pi = new PersistenceInterface (new URL("http://localhost:8084"));
         CharacterDao characterDao = new CharacterDao(pi);
         

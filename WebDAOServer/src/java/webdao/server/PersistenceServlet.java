@@ -23,10 +23,10 @@ import webdao.PersistenceRequest;
 public class PersistenceServlet extends HttpServlet {
 
     private String DAO_PACKAGE_LOCATION;
-    
+
     @Override
     public void init(ServletConfig config) throws ServletException {
-       DAO_PACKAGE_LOCATION = config.getInitParameter("daoPackageLocation");
+        DAO_PACKAGE_LOCATION = config.getInitParameter("daoPackageLocation");
     }
 
     /**
@@ -36,29 +36,19 @@ public class PersistenceServlet extends HttpServlet {
      * @param request servlet request
      * @param response servlet response
      * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
      */
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+            throws ServletException {
 
-        try {
-            ObjectInputStream inputStream = new ObjectInputStream(request.getInputStream());
+        try (ObjectInputStream inputStream = new ObjectInputStream(request.getInputStream());
+                ObjectOutputStream outputStream = new ObjectOutputStream(response.getOutputStream());) {
             PersistenceRequest pr = (PersistenceRequest) inputStream.readObject();
             DaoRequestProcessor processor = new DaoRequestProcessor();
-            Object result = processor.processRequest(pr,request.getSession(), DAO_PACKAGE_LOCATION);
-            ObjectOutputStream outputStream = new ObjectOutputStream(response.getOutputStream());
+            Object result = processor.processRequest(pr, request.getSession(), DAO_PACKAGE_LOCATION);
             outputStream.writeObject(result);
-            outputStream.close();
-        } catch (Throwable e) {
-            System.out.println("Error in PersistenceServlet processRequest: " + getStackTrace(e));
-            ObjectOutputStream outputStream = new ObjectOutputStream(response.getOutputStream());
-
-            if (e instanceof RuntimeException) {
-                outputStream.writeObject(e);
-            } else {
-                outputStream.writeObject(new RuntimeException(getStackTrace(e)));
-            }
-            outputStream.close();
+        } catch (ClassNotFoundException | IOException ex) {
+            log("Error in PersistenceServlet.processRequest", ex);
+            throw new ServletException("Error in PersistenceServlet.processRequest", ex);
         }
     }
 
@@ -101,9 +91,4 @@ public class PersistenceServlet extends HttpServlet {
         return "Handles Persistence Requests from the client.";
     }// </editor-fold>
 
-    private String getStackTrace(Throwable e) {
-        StringWriter errors = new StringWriter();
-        e.printStackTrace(new PrintWriter(errors));
-        return errors.toString();
-    }
 }
