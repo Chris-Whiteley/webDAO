@@ -20,7 +20,7 @@ import webdao.TransactionTimeoutError;
 
 /**
  *
- * @author y125070
+ * @author Chris Whiteley
  */
 public class PersistenceInterface {
 

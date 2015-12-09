@@ -7,8 +7,6 @@ package webdao.server;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -43,7 +41,9 @@ public class PersistenceServlet extends HttpServlet {
         try (ObjectInputStream inputStream = new ObjectInputStream(request.getInputStream());
                 ObjectOutputStream outputStream = new ObjectOutputStream(response.getOutputStream());) {
             PersistenceRequest pr = (PersistenceRequest) inputStream.readObject();
-            DaoRequestProcessor processor = new DaoRequestProcessor();
+            
+            // could use a Factory here if we have different kinds of DAORequestProcessor
+            DAORequestProcessor processor = new JpaDaoRequestProcessor();
             Object result = processor.processRequest(pr, request.getSession(), DAO_PACKAGE_LOCATION);
             outputStream.writeObject(result);
         } catch (ClassNotFoundException | IOException ex) {

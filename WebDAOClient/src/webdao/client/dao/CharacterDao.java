@@ -5,6 +5,7 @@
  */
 package webdao.client.dao;
 
+import webdao.dao.CharacterDAO;
 import java.util.List;
 import webdao.client.PersistenceInterface;
 import webdao.entity.Character;
@@ -13,7 +14,7 @@ import webdao.entity.Character;
  *
  * @author Chris
  */
-public class CharacterDao {
+public class CharacterDao implements CharacterDAO {
 
     private final PersistenceInterface pi;
     private final String className;
@@ -24,15 +25,18 @@ public class CharacterDao {
     }
 
     
+    @Override
     public void deleteAll() {
         pi.sendRequest(className, "deleteAll");
     }
     
     
+    @Override
     public List<Character> getAll() {
         return pi.sendRequest  (className, "getAll");
     }
 
+    @Override
     public void create(Character c) {
         pi.sendRequest (className, "create", c);
     }

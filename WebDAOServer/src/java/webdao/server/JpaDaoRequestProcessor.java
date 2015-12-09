@@ -23,7 +23,7 @@ import webdao.VoidReturn;
  *
  * @author Chris Whiteley
  */
-class DaoRequestProcessor {
+class JpaDaoRequestProcessor implements DAORequestProcessor {
 
     static final String EM_ATTRIBUTE = "em";
 
@@ -40,6 +40,7 @@ class DaoRequestProcessor {
      * @return the response object results to be returned to the client.
      * @throws Exception
      */
+    @Override
     public Object processRequest(PersistenceRequest pr, HttpSession session, String daoPackageName) {
         Object response = new VoidReturn();
 

@@ -20,7 +20,7 @@ public class TransactionSessionListener implements HttpSessionListener {
 
     @Override
     public void sessionDestroyed(HttpSessionEvent se) {
-        EntityManager em = (EntityManager)se.getSession().getAttribute(DaoRequestProcessor.EM_ATTRIBUTE);
+        EntityManager em = (EntityManager)se.getSession().getAttribute(JpaDaoRequestProcessor.EM_ATTRIBUTE);
         if (em != null) {
             if (em.isOpen()) {
                 em.close();
